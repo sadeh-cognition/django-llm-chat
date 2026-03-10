@@ -18,14 +18,14 @@ user = User.objects.create_user(username="testuser", password="12345")
 ```
 
 > [!TIP]
-> Each user message has a foreign key to a user.
+> Each  message has a foreign key to a user.
 > A `Chat` can therefore have multiple users.
 
 > [!NOTE]
 > If you don't provide a user for user messages, then a default user (`djllmchat-user`) will be created and assigned to the message.
 
 > [!NOTE]
-> LLM messages get linked to a user called `djllmchat`.
+> LLM messages have a user called `djllmchat`.
 
 Now we create a `Chat`:
 
@@ -36,7 +36,7 @@ chat = Chat.create()
 
 This `Chat` will be linked to all the messages in this conversation. By default, for each new user message the whole chat history gets sent to the LLM.
 
-You can add only one system message to the whole chat:
+You can add only one system message to a chat:
 
 ```python
 system_msg = chat.create_system_message("You are an artist!", user)
@@ -48,7 +48,9 @@ You can create one or more user messages and call the LLM:
 from django_llm_chat.models import Message, LLMCall
 
 # explicitly create a user message
-first_user_msg = chat.create_user_message(text='Hi, how are you?', user=readingpal_user)
+first_user_msg = chat.create_user_message(text='Hi, how are you?', user=alex)
+
+# below I create another one and send everything to the LLM
 
 user_query = "Tell me who you are."
 model_name = "ollama_chat/qwen3:4b"
@@ -57,11 +59,10 @@ ai_msg: Message
 user_msg: Message
 llm_call: LLMCall
 
-# user message gets created implicitly
+# NOTE: user message gets created implicitly and all messages in chat history are sent to LLM
 ai_msg, second_user_msg, llm_call = chat.send_user_msg_to_llm(
     model_name=model_name, text=user_query, user=user, include_chat_history=True
-)  # sends all messages in chat history to LLM
-
+)
 print(ai_msg.text)  # prints LLM response text
 ```
 
@@ -100,13 +101,14 @@ Now, let's say you see the LLM response and wonder what actually was sent to the
 ```python
 from django_llm_chat.model import LLMCall
 
+# Note: remember `llm_call` was returned by `chat.send_user_msg_to_llm`
 llm_call = LLMCall.objects.get(llm_call.id)
 print(llm_call.messages.all())
 ```
 
 # Front-end Usage
 
-This package includes a front-end for viewing LLM calls and messages.
+This package includes a Django-based front-end for inspecting LLM calls and messages.
 
 ## Setup
 
