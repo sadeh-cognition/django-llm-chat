@@ -1,19 +1,44 @@
 from typing import Iterable, Self
 from django.db import models
 from django.conf import settings
+from django.contrib.auth import get_user_model
+
+
+
+class Project(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
 
 
 class Chat(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL, null=True, blank=True, related_name="chats"
+    )
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
     input_tokens_count = models.IntegerField(default=0)
     output_tokens_count = models.IntegerField(default=0)
+
+    @classmethod
+    def get_llm_user(cls):
+        return get_user_model().objects.get(username="llm")
+
+    @classmethod
+    def create_llm_user(cls):
+        return get_user_model().objects.create_user(username="llm", password="llm")
 
     def add_token_counts(self, input_token_count: int, output_token_count: int):
         self.input_tokens_count += input_token_count
         self.output_tokens_count += output_token_count
         self.save()
 
+    def get_messages(self) -> models.QuerySet:
+        return self.messages.order_by("date_created")
 
 class Message(models.Model):
     class Type(models.TextChoices):

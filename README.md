@@ -23,10 +23,7 @@ user = User.objects.create_user(username="testuser", password="12345")
 > A `Chat` can therefore have multiple users.
 
 > [!NOTE]
-> If you don't provide a user for user messages, then a default user (`djllmchat-user`) will be created and assigned to the message.
-
-> [!NOTE]
-> LLM messages have a user called `djllmchat`.
+> LLM messages have a user called `litellm`.
 
 Now we create a `Chat`:
 
@@ -61,7 +58,7 @@ user_msg: Message
 llm_call: LLMCall
 
 # NOTE: user message gets created implicitly and all messages in chat history are sent to LLM
-ai_msg, second_user_msg, llm_call = chat.send_user_msg_to_llm(
+ai_msg, second_user_msg, llm_call = chat.call_llm(
     model_name=model_name,
     text=user_query,
     user=user,
@@ -76,7 +73,7 @@ print(ai_msg.text)  # prints LLM response text
 You can also stream responses:
 
 ```python
-gen = chat.stream_user_msg_to_llm(
+gen = chat.stream_call_llm(
     model_name=model_name,
     text=user_query,
     user=user,
@@ -96,7 +93,7 @@ except StopIteration as e:
 ```
 
 > [!NOTE]
-> `user`, `include_chat_history`, `temperature`, and `max_tokens` are optional parameters. Caching is not enabled by default.
+> `include_chat_history`, `temperature`, and `max_tokens` are optional parameters. Caching is not enabled by default.
 
 `user_msg` and `ai_message` are Django ORM model instances:
 
@@ -130,7 +127,7 @@ Now, let's say you see the LLM response and wonder what actually was sent to the
 ```python
 from django_llm_chat.model import LLMCall
 
-# Note: remember `llm_call` was returned by `chat.send_user_msg_to_llm`
+# Note: remember `llm_call` was returned by `chat.call_llm`
 llm_call = LLMCall.objects.get(llm_call.id)
 print(llm_call.messages.all())
 ```
