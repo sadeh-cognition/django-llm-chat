@@ -3,6 +3,7 @@ from typing import Iterable, Self, Generator
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from pydantic import BaseModel
 
 from .models import Chat as ChatDBModel, Project
 from .models import LLMCall, Message
@@ -67,6 +68,7 @@ class Chat:
         use_cache: bool = False,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        output_model: type[BaseModel] | None = None,
     ) -> None:
         user_msg: Message = self.create_user_message(message, user)
         messages = list(self.get_msg_history()) if include_chat_history else [user_msg]
@@ -75,7 +77,11 @@ class Chat:
         cache_key = None
         if use_cache:
             cache_key = LLMCacheService.compute_cache_key(
-                model_name, messages, temperature=temperature, max_tokens=max_tokens
+                model_name,
+                messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                output_model=output_model,
             )
             cache_item = LLMCacheService.lookup_cache(cache_key)
             if cache_item:
@@ -91,7 +97,11 @@ class Chat:
             else:
                 provider = self._get_backend_provider(model_name)
                 response_text, response_data = provider.generate(
-                    model_name, messages, temperature=temperature, max_tokens=max_tokens
+                    model_name,
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    output_model=output_model,
                 )
                 LLMCacheService.save_to_cache(
                     cache_key, model_name, response_text, response_data
@@ -99,7 +109,11 @@ class Chat:
         else:
             provider = self._get_backend_provider(model_name)
             response_text, response_data = provider.generate(
-                model_name, messages, temperature=temperature, max_tokens=max_tokens
+                model_name,
+                messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                output_model=output_model,
             )
 
         input_tokens = response_data["usage"]["prompt_tokens"]

@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, override_settings
+from pydantic import BaseModel
 from django.contrib.auth import get_user_model
 from django_llm_chat.chat import Chat
 from django_llm_chat.models import Message, LLMCache
@@ -67,6 +68,43 @@ class ChatTestCase(TestCase):
         self.assertEqual(new_chat.last_llm_message.text, "Hello, I am an AI")
         # Ensure completion was not called again
         mock_completion.assert_called_once()
+
+    @patch("django_llm_chat.backends.completion")
+    def test_call_llm_passes_output_model_as_response_format(self, mock_completion):
+        class CalendarEvent(BaseModel):
+            name: str
+            date: str
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[
+            0
+        ].message.content = '{"name":"Launch","date":"2026-03-28"}'
+        mock_response.choices[0].message.to_dict.return_value = {
+            "role": "assistant",
+            "content": '{"name":"Launch","date":"2026-03-28"}',
+        }
+        mock_response.id = "test-structured-id"
+        mock_response.model = "gpt-4o-2024-08-06"
+        mock_response.usage.to_dict.return_value = {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        }
+        mock_completion.return_value = mock_response
+
+        self.chat.call_llm(
+            model_name="gpt-4o-2024-08-06",
+            message="Extract the event",
+            user=self.user,
+            include_chat_history=False,
+            output_model=CalendarEvent,
+        )
+
+        mock_completion.assert_called_once()
+        self.assertIs(
+            mock_completion.call_args.kwargs["response_format"], CalendarEvent
+        )
 
     @patch("django_llm_chat.backends.completion")
     def test_stream_call_llm(self, mock_completion):

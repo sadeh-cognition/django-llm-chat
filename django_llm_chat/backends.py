@@ -6,7 +6,9 @@ from abc import ABC, abstractmethod
 
 import litellm
 from litellm import completion
+from pydantic import BaseModel
 from .models import Message
+
 
 class LLMProvider(ABC):
     @abstractmethod
@@ -16,6 +18,7 @@ class LLMProvider(ABC):
         messages: Iterable[Message],
         temperature: float | None = None,
         max_tokens: int | None = None,
+        output_model: type[BaseModel] | None = None,
     ) -> tuple[str, dict]:
         pass
 
@@ -29,6 +32,7 @@ class LLMProvider(ABC):
     ) -> Generator[str | tuple[str, dict], None, None]:
         pass
 
+
 class LiteLLMProvider(LLMProvider):
     def _prepare_messages(self, messages: Iterable[Message]) -> list[dict]:
         return [{"content": msg.text, "role": msg.type} for msg in messages]
@@ -39,6 +43,7 @@ class LiteLLMProvider(LLMProvider):
         messages: Iterable[Message],
         temperature: float | None = None,
         max_tokens: int | None = None,
+        output_model: type[BaseModel] | None = None,
     ) -> tuple[str, dict]:
         litellm_messages = self._prepare_messages(messages)
         completion_kwargs = {}
@@ -46,6 +51,8 @@ class LiteLLMProvider(LLMProvider):
             completion_kwargs["temperature"] = temperature
         if max_tokens is not None:
             completion_kwargs["max_tokens"] = max_tokens
+        if output_model is not None:
+            completion_kwargs["response_format"] = output_model
 
         response = completion(
             model=model_name,
@@ -110,6 +117,7 @@ class LiteLLMProvider(LLMProvider):
         }
         yield response_text, response_data
 
+
 class LMStudioProvider(LLMProvider):
     def _prepare_messages(self, messages: Iterable[Message]) -> list[dict]:
         lms_messages = []
@@ -134,8 +142,11 @@ class LMStudioProvider(LLMProvider):
         messages: Iterable[Message],
         temperature: float | None = None,
         max_tokens: int | None = None,
+        output_model: type[BaseModel] | None = None,
     ) -> tuple[str, dict]:
-        system_msg = next((m.text for m in messages if m.type == Message.Type.SYSTEM), "")
+        system_msg = next(
+            (m.text for m in messages if m.type == Message.Type.SYSTEM), ""
+        )
         user_msg = list(messages)[-1].text if messages else ""
 
         data = {
@@ -154,7 +165,11 @@ class LMStudioProvider(LLMProvider):
         result = response.json()
 
         output_content = "".join(
-            [o.get("content", "") for o in result.get("output", []) if o.get("type") == "message"]
+            [
+                o.get("content", "")
+                for o in result.get("output", [])
+                if o.get("type") == "message"
+            ]
         )
         stats = result.get("stats", {})
         prompt_tokens = stats.get("input_tokens", 0)
@@ -179,8 +194,13 @@ class LMStudioProvider(LLMProvider):
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> Generator[str | tuple[str, dict], None, None]:
-        system_msg = next((m.text for m in messages if m.type == Message.Type.SYSTEM), "")
-        user_msg_text = next((m.text for m in reversed(list(messages)) if m.type == Message.Type.USER), "")
+        system_msg = next(
+            (m.text for m in messages if m.type == Message.Type.SYSTEM), ""
+        )
+        user_msg_text = next(
+            (m.text for m in reversed(list(messages)) if m.type == Message.Type.USER),
+            "",
+        )
 
         data = {
             "model": model_name,
@@ -198,7 +218,9 @@ class LMStudioProvider(LLMProvider):
         completion_tokens = 0
         response_id = "unknown"
 
-        with requests.Session().post(self._get_api_url(), json=data, stream=True) as resp:
+        with requests.Session().post(
+            self._get_api_url(), json=data, stream=True
+        ) as resp:
             resp.raise_for_status()
             for line in resp.iter_lines():
                 if not line:
